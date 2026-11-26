@@ -21,7 +21,7 @@ const CATS=[
   {id:"sorties",e:"🍻",n:"Sorties",syn:["sortie","bar","resto","restaurant","soiree","boite","verre"]},
   {id:"bouffe",e:"🍔",n:"Bouffe",syn:["manger","repas","kebab","burger","mcdo","snack","fast food","dejeuner","diner","pizza"]},
   {id:"courses",e:"🛒",n:"Courses",syn:["course","supermarche","carrefour","leclerc","lidl","auchan"]},
-  {id:"transport",e:"⛽",n:"Transport",syn:["essence","carburant","plein","gasoil","peage","train","bus","uber","parking"]},
+  {id:"transport",e:"⛽",n:"Transport",syn:["essence","carburant","plein","gasoil","peage","train","bus","uber","parking","total","totalenergies","esso","shell","avia","station","sncf","ratp"]},
   {id:"shopping",e:"🛍️",n:"Shopping",syn:["vetement","vetements","habits","amazon","achat"]},
   {id:"loisirs",e:"🎮",n:"Loisirs",syn:["loisir","jeu","jeux","cinema","peche","sport","concert"]},
   {id:"sante",e:"💊",n:"Santé",syn:["pharmacie","medecin","docteur","dentiste"]},
@@ -76,6 +76,7 @@ function sanitize(o){
   s.settings=Object.assign(emptyState().settings,o.settings||{});
   s.settings.rule=Object.assign({base:0,seuil:0,bonus:50},(o.settings||{}).rule||{});
   ["incomes","charges","accounts"].forEach(k=>{if(!Array.isArray(s.settings[k]))s.settings[k]=[]});
+  s.settings.accounts.forEach(a=>{if(!a.id)a.id=uid()});
   if(!Array.isArray(s.pots))s.pots=[];if(!Array.isArray(s.moves))s.moves=[];
   if(!Array.isArray(s.liqHist))s.liqHist=[];
   if(!s.months||typeof s.months!=="object")s.months={};if(!s.lessons||typeof s.lessons!=="object")s.lessons={};
@@ -347,44 +348,46 @@ function yearStats(){
 }
 function vHome(){
   const k=activeKey(),m=k&&S.months[k],real=m&&!m.auto;
-  let hero;
+  const liq=liquidity(),ys=yearStats(),tip=dailyTip(),A=S.settings.accounts;
+  /* 1. Liquidités en haut */
+  const liqCard=`<div class="card liqcard" data-act="liq"><div class="row"><span class="label">💧 Mes liquidités${liq.est?" (estim.)":""}</span><span class="small muted">Modifier ›</span></div>
+   <div class="big" style="font-size:38px">${fmt(liq.v)}</div>
+   ${A.length?`<div class="acclist">${A.map(a=>`<div><span>${esc(a.n)}</span><b class="${num(a.a)<0?"neg":""}">${fmt(a.a)}</b></div>`).join("")}</div>`:`<div class="tip" style="margin:0">Ajoute tes comptes (courant, livret…) pour suivre tout ton argent au même endroit.</div>`}</div>`;
+  const quick=`<div class="grid2" style="margin-bottom:14px"><button class="btn qa out" data-act="expense"><span>−</span>Dépense</button><button class="btn qa in" data-act="income"><span>+</span>Entrée</button></div>`;
+  /* 2. Reste à dépenser (seulement si une paie est rentrée) */
+  let hero="";
   if(real){
     const av=avail(m),l=leftOf(m),pct=av>0?Math.max(0,Math.min(100,l/av*100)):0,d=daysToPay();
     const over=l<0,low=!over&&pct<15;
     hero=`<div class="card hero${over?" over":""}" data-act="tab" data-t="spend"><div class="row"><span class="label">${over?"Budget dépassé":"Reste à dépenser"}</span><span class="pill">${d} j avant la paie</span></div>
      <div class="big">${fmt(l)}</div><div class="bar"><i style="width:${pct}%"></i></div>
      <div class="row" style="margin-top:10px;font-size:14px;font-weight:600"><span>${over?"Lève le pied jusqu'à la paie 💪":low?"⚠️ Bientôt à sec : "+fmt(l/d)+" / jour":"≈ "+fmt(l/d)+" / jour"}</span><span>sur ${fmt(av)}</span></div></div>`;
-  }else{
-    hero=`<div class="card hero"><div class="label">${esc(monthName(keyOffset(0)))}${m?` · ${fmt(spent(m))} dépensés`:""}</div><div class="mid" style="margin:6px 0 14px;position:relative">Ta paie est tombée ?</div>
-     <button class="btn hbtn" data-act="pay">💶 J'ai reçu ma paie</button>
-     <button class="btn hbtn2" style="margin-top:10px" data-act="manual">Pas encore ? Dis-moi ce qu'il te reste</button></div>`;
   }
-  const liq=liquidity(),ys=yearStats(),tip=dailyTip();
   const hasData=Object.values(S.months).some(x=>(x.exp||[]).length||num(x.savings)>0);
   const nReal=Object.values(S.months).filter(x=>!x.auto).length;
-  const steps=[[real,"Rentre ta paie (ou ce qu'il te reste)","pay"],[Object.values(S.months).some(x=>(x.exp||[]).length),"Note ta première dépense","expense"],[S.settings.charges.some(c=>num(c.a)>0)||num(S.settings.rule.base)>0,"Règle tes charges fixes et ton épargne","gome"]];
+  /* paie : petite ligne discrète en bas */
+  const payRow=`<div class="card payrow" data-act="${real&&k===keyOffset(0)?"editmonth":"pay"}" data-id="${esc(real?k:"")}"><span>💶</span><div class="grow"><b>${real?"Ma paie · "+esc(monthName(k).toLowerCase()):"Ta paie est tombée ?"}</b><span>${real?"Modifier ou ajouter la suivante":"Rentre-la pour calculer ton budget du mois"}</span></div><span class="muted">›</span></div>`;
+  const steps=[[real,"Rentre ta paie (ou ce qu'il te reste)","pay"],[Object.values(S.months).some(x=>(x.exp||[]).length),"Note ta première dépense","expense"],[A.length>0,"Ajoute tes comptes","liq"]];
   const todo=steps.filter(x=>!x[0]).length;
-  const startCard=todo&&S.hideStart?`<div class="card startmini" data-act="showstart"><b>🚀 Bien démarrer (${3-todo}/3)</b><span class="small muted">Afficher ▾</span></div>`:todo?`<div class="card"><div class="row"><b>🚀 Bien démarrer (${3-todo}/3)</b><a class="small muted" data-act="hidestart" style="cursor:pointer">Réduire ▴</a></div>
-   ${steps.map(x=>`<div class="check ${x[0]?"on":""}" ${x[0]?"":`data-act="${x[2]}"`}><i>${x[0]?"✓":""}</i><span>${x[1]}</span></div>`).join("")}</div>`:"";
-  const quick=`<div class="grid2" style="margin-bottom:14px"><button class="btn qa out" data-act="expense"><span>−</span>Dépense</button><button class="btn qa in" data-act="income"><span>+</span>Entrée</button></div>`;
+  const startCard=!todo?"":S.hideStart?`<div class="card startmini" data-act="showstart"><b>🚀 Bien démarrer (${3-todo}/3)</b><span class="small muted">Afficher ▾</span></div>`:`<div class="card"><div class="row"><b>🚀 Bien démarrer (${3-todo}/3)</b><a class="small muted" data-act="hidestart" style="cursor:pointer">Réduire ▴</a></div>
+   ${steps.map(x=>`<div class="check ${x[0]?"on":""}" ${x[0]?"":`data-act="${x[2]}"`}><i>${x[0]?"✓":""}</i><span>${x[1]}</span></div>`).join("")}</div>`;
   const pots=S.pots.map(p=>{const v=potBalance(p.id),g=num(p.goal);return `<div class="it" data-act="pot" data-id="${esc(p.id)}" style="cursor:pointer"><div class="emo" style="background:${esc(p.col)}22">${esc(p.e)}</div><div class="grow"><b>${esc(p.n)}</b>${g>0?`<div class="bar" style="height:6px;margin-top:6px"><i style="width:${Math.min(100,v/g*100)}%;background:${esc(p.col)}"></i></div>`:`<span>${p.mode==="fixe"?fmt(p.val)+" / mois":Math.round(num(p.val))+" % de l'épargne"}</span>`}</div><div class="amt">${fmt(v)}</div></div>`}).join("");
   return `<div class="top"><div><h1>Salut ${esc(S.name||"")} 👋</h1><div class="sub" style="margin:0" id="syncdot">${esc(syncLabel())}</div></div>
    <div class="row" style="gap:8px">${MIC}<button class="iconbtn" data-act="tab" data-t="me" aria-label="Profil">👤</button></div></div><div style="height:14px"></div>
-  <div class="dash"><div class="c5">${hero}</div>
-  <div class="c3 qcol">${quick}</div>${startCard?`<div class="c4">${startCard}</div>`:""}
+  <div class="dash"><div class="c5">${liqCard}</div>
+  <div class="c3 qcol">${quick}</div>
+  ${hero?`<div class="c4">${hero}</div>`:""}
   ${m?`<div class="c4"><div class="card"><div class="label" style="margin-bottom:10px">🗓️ Ce mois-ci</div><div class="grid2" style="grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
     <div><div class="small muted">Entrées</div><b>${fmt(num(m.salary)+num(m.extra)+incReal(m))}</b></div><div><div class="small muted">Dépensé</div><b class="neg">${fmt(spentReal(m))}</b></div><div><div class="small muted">Épargné</div><b class="pos">${fmt(m.savings)}</b></div></div></div></div>`:""}
-  <div class="c4"><div class="grid2" style="margin-bottom:14px">
-   <div class="card" style="margin:0;padding:15px" data-act="liq"><div class="label">💧 Liquidités${liq.est?" (estim.)":""}</div><div class="mid" style="margin-top:6px">${fmt(liq.v)}</div><div class="g small muted" style="margin-top:4px">${S.settings.accounts.length?S.settings.accounts.length+" compte(s)":"Touche pour ajouter tes comptes"}</div></div>
-   <div class="card" style="margin:0;padding:15px" data-act="tab" data-t="pots"><div class="label">🪙 Épargne</div><div class="mid" style="margin-top:6px">${fmt(totalSaved())}</div><div class="g small muted" style="margin-top:4px">dans ${S.pots.length} pot(s)</div></div>
-  </div></div>
   ${S.liqHist.length>=2?`<div class="c8"><div class="card"><div class="row" style="margin-bottom:8px"><span class="label">📈 Évolution de ton solde</span><span class="small muted">tous comptes</span></div>${liqChart()}</div></div>`:""}
   ${nReal>=2?`<div class="c5"><div class="card"><div class="row" style="margin-bottom:8px"><span class="label">📊 6 derniers mois</span></div>${chart6()}</div></div>`:""}
   ${hasData?`<div class="c3 ycol"><div class="card"><div class="label" style="margin-bottom:10px">📅 Année ${ys.y}</div>
    <div class="grid2" style="grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
     <div><div class="small muted">Épargné</div><b class="pos">${fmt(ys.sv)}</b></div><div><div class="small muted">Dépensé</div><b class="neg">${fmt(ys.sp)}</b></div><div><div class="small muted">Rentrées +</div><b>${fmt(ys.inc)}</b></div></div></div></div>`:""}
-  <div class="c4"><div class="sec">Mes pots <a data-act="tab" data-t="pots">Gérer</a></div>
+  <div class="c4"><div class="sec">Mes pots · ${fmt(totalSaved())} <a data-act="tab" data-t="pots">Gérer</a></div>
   <div class="card list">${pots||`<div class="empty">Aucun pot. <a class="pos" data-act="newpot">Créer un pot</a></div>`}</div></div>
+  <div class="c4">${payRow}</div>
+  ${startCard?`<div class="c4">${startCard}</div>`:""}
   ${tip?`<div class="c12"><div class="card tip-card" data-act="lesson" data-id="${tip.l.id}"><div class="label">💡 Astuce du jour · ${esc(tip.l.title)}</div><div style="font-weight:700;margin-top:6px">${esc(tip.t)}</div></div></div>`:""}</div>`;
 }
 function dailyTip(){const all=[];COURSES.list.forEach(l=>l.tips.forEach(t=>all.push({l,t})));if(!all.length)return null;const d=Math.floor(Date.now()/864e5);return all[d%all.length]}
@@ -399,8 +402,8 @@ function movesOf(m){
 }
 function mvRow(e){
   const dt=new Date(e.d).toLocaleDateString("fr-FR",{weekday:"short",day:"numeric",month:"short"});
-  if(e.k==="inc")return `<div class="it"><div class="emo">${e.carry?"🔁":incOf(e.c).e}</div><div class="grow"><b>${esc(e.l||incOf(e.c).n)}</b><span>${dt} · ${e.carry?"report":incOf(e.c).n}</span></div><div class="amt pos">+${fmt(e.a)}</div><button class="x" data-act="delinc" data-id="${esc(e.id)}" aria-label="Supprimer">×</button></div>`;
-  return `<div class="it"><div class="emo">${catOf(e.c).e}</div><div class="grow"><b>${esc(e.l||catOf(e.c).n)}</b><span>${dt}</span></div><div class="amt neg">−${fmt(e.a)}</div><button class="x" data-act="delexp" data-id="${esc(e.id)}" aria-label="Supprimer">×</button></div>`;
+  if(e.k==="inc")return `<div class="it"><div class="emo">${e.carry?"🔁":incOf(e.c).e}</div><div class="grow"><b>${esc(e.l||incOf(e.c).n)}</b><span>${dt} · ${e.carry?"report":incOf(e.c).n}${e.acc&&accOf(e.acc)?" · "+esc(accOf(e.acc).n):""}</span></div><div class="amt pos">+${fmt(e.a)}</div><button class="x" data-act="delinc" data-id="${esc(e.id)}" aria-label="Supprimer">×</button></div>`;
+  return `<div class="it"><div class="emo">${catOf(e.c).e}</div><div class="grow"><b>${esc(e.l||catOf(e.c).n)}</b><span>${dt}${e.acc&&accOf(e.acc)?" · "+esc(accOf(e.acc).n):""}</span></div><div class="amt neg">−${fmt(e.a)}</div><button class="x" data-act="delexp" data-id="${esc(e.id)}" aria-label="Supprimer">×</button></div>`;
 }
 
 /* ---------- Dépenses ---------- */
@@ -469,6 +472,15 @@ function vMe(){
    <div class="label" style="margin:14px 0 8px">Couleur · froides → chaudes</div><div class="pals">${PALS.map(x=>`<button class="pal ${palPref()===x[0]?"on":""}" data-act="pal" data-m="${x[0]}" style="background:${x[2]}" aria-label="${x[1]}" title="${x[1]}"></button>`).join("")}</div>
    <div class="row" style="justify-content:flex-start;gap:4px;flex-wrap:wrap;padding-top:8px"><button class="link" data-act="tuto" data-i="0" style="padding:8px 10px 0 0">▶︎ Revoir le tutoriel</button>${S.hideStart?`<button class="link" data-act="showstart" style="padding:8px 0 0">🚀 Réafficher « Bien démarrer »</button>`:""}</div></div>
   <div class="card">${acc}</div>
+  <div class="card"><div class="label">⚡ Apple Pay → Pécule (iPhone)</div>
+   <div class="tip" style="margin-top:6px">Quand tu paies avec Apple Pay, Pécule peut s'ouvrir avec la dépense déjà remplie : tu n'as plus qu'à valider.</div>
+   <ol class="tip" style="padding-left:18px;margin:8px 0 0;line-height:1.6">
+    <li>App <b>Raccourcis</b> → <b>Automatisation</b> → <b>+</b> → <b>Transaction</b>.</li>
+    <li>Choisis tes cartes, coche <b>Exécuter immédiatement</b>.</li>
+    <li>Action <b>Ouvrir les URL</b>, avec ce lien (remplace les mots entre crochets par les variables <i>Montant</i>, <i>Commerçant</i>, <i>Carte</i>) :</li></ol>
+   <div class="code" id="aplink">${esc(location.origin+location.pathname)}?add=[Montant]&amp;m=[Commerçant]&amp;card=[Carte]</div>
+   <button class="btn ghost sm" data-act="copylink">Copier le lien</button>
+   <div class="tip">Astuce : donne à tes comptes le même nom que tes cartes, Pécule choisira le bon compte tout seul. Fonctionne au mieux avec un compte Pécule connecté.</div></div>
   <div class="card"><div class="field"><label>Prénom</label><input data-k="name" value="${esc(S.name)}"></div></div>
   <div class="sec">Rentrées</div><div class="card"><div class="field"><label>Salaire net moyen (€)</label><input data-k="settings.avgSalary" inputmode="decimal" value="${esc(st.avgSalary||"")}"></div>
    <div class="label" style="margin-bottom:8px">Autres rentrées fixes</div>${listRows("incomes")}<button class="btn ghost sm" data-act="addrow" data-l="incomes">+ Ajouter</button></div>
@@ -556,13 +568,23 @@ function bindDate(){
     $("#d_lab").textContent=new Date(v+"T12:00:00").toLocaleDateString("fr-FR",{day:"numeric",month:"short"});mark(inp.parentElement);});
 }
 function pickedDate(){const d=sh.dataset.date;return !d||d===dayStr(0)?new Date().toISOString():new Date(d+"T12:00:00").toISOString()}
+const accOf=id=>S.settings.accounts.find(a=>a.id===id);
+function accRow(label,pre){
+  const A=S.settings.accounts;if(!A.length)return"";
+  const sel=pre&&accOf(pre)?pre:(accOf(S.lastAcc)?S.lastAcc:A[0].id);
+  return `<div class="label" style="margin:4px 0 0">${label}</div><div class="chips" id="acc_c">${A.map(a=>`<button class="chip ${a.id===sel?"on":""}" data-acc="${esc(a.id)}">🏦 ${esc(a.n)}</button>`).join("")}<button class="chip ${sel==="none"?"on":""}" data-acc="">Aucun</button></div>`;
+}
+function bindAcc(){const r=$("#acc_c");if(!r)return;const on=r.querySelector(".chip.on");sh.dataset.acc=on?on.dataset.acc:"";
+  r.addEventListener("click",e=>{const b=e.target.closest("[data-acc]");if(!b)return;sh.dataset.acc=b.dataset.acc;r.querySelectorAll(".chip").forEach(x=>x.classList.toggle("on",x===b));});}
+function moveAcc(id,delta){const a=accOf(id);if(a)a.a=Math.round((num(a.a)+delta)*100)/100;}
 function sheetExpense(prefill){
   let cat=(prefill&&prefill.c)||"sorties";
   openSheet(`<h2>➖ Nouvelle dépense</h2><input id="e_a" class="bigin" inputmode="decimal" placeholder="0 €" value="${prefill&&prefill.a?esc(prefill.a):""}" autofocus>
    ${dateRow()}
    <div class="chips" id="e_c">${CATS.map(c=>`<button class="chip ${c.id===cat?"on":""}" data-c="${c.id}">${c.e} ${c.n}</button>`).join("")}</div>
-   <div class="field"><input id="e_l" placeholder="Note (facultatif)" maxlength="60"></div><button class="btn" data-act="saveexp">Ajouter</button>`);
-  sh.dataset.cat=cat;bindDate();
+   ${accRow("Payé avec",prefill&&prefill.acc)}
+   <div class="field"><input id="e_l" placeholder="Note (facultatif)" maxlength="60" value="${prefill&&prefill.l?esc(prefill.l):""}"></div><button class="btn" data-act="saveexp">Ajouter</button>`);
+  sh.dataset.cat=cat;bindDate();bindAcc();
   $("#e_c").addEventListener("click",e=>{const b=e.target.closest("[data-c]");if(!b)return;sh.dataset.cat=b.dataset.c;sh.querySelectorAll("#e_c .chip").forEach(x=>x.classList.toggle("on",x===b));});
 }
 function sheetIncome(pre){
@@ -572,18 +594,19 @@ function sheetIncome(pre){
    <div class="label" style="margin:4px 0 0">C'est quoi ?</div>
    <div class="chips" id="i_c">${INC.map(c=>`<button class="chip ${c.id===cat?"on":""}" data-c="${c.id}">${c.e} ${c.n}</button>`).join("")}</div>
    <div class="field"><input id="i_l" placeholder="Note (facultatif) : nom du client, objet vendu…" maxlength="60"></div>
-   <div class="label" style="margin:4px 0 0">Où va cet argent ?</div>
-   <div class="chips" id="i_to"><button class="chip on" data-to="">💳 Mon budget</button>${S.pots.map(p=>`<button class="chip" data-to="${esc(p.id)}">${esc(p.e)} ${esc(p.n)}</button>`).join("")}</div>
+   ${accRow("Arrive sur")}
+   <div class="label" style="margin:4px 0 0">À mettre de côté dans un pot ?</div>
+   <div class="chips" id="i_to"><button class="chip on" data-to="">Non, dans mon budget</button>${S.pots.map(p=>`<button class="chip" data-to="${esc(p.id)}">${esc(p.e)} ${esc(p.n)}</button>`).join("")}</div>
    <button class="btn" data-act="saveinc">Ajouter</button>`);
-  sh.dataset.to="";sh.dataset.cat=cat;bindDate();
+  sh.dataset.to="";sh.dataset.cat=cat;bindDate();bindAcc();
   $("#i_c").addEventListener("click",e=>{const b=e.target.closest("[data-c]");if(!b)return;
     if(b.dataset.c==="salaire"){const v=$("#i_a").value;sheetPay();if(num(v)){$("#p_sal").value=v;$("#p_sal").dispatchEvent(new Event("input"))}toast("Salaire : Pécule calcule ton épargne");return}
     sh.dataset.cat=b.dataset.c;sh.querySelectorAll("#i_c .chip").forEach(x=>x.classList.toggle("on",x===b));});
   $("#i_to").addEventListener("click",e=>{const b=e.target.closest("[data-to]");if(!b)return;sh.dataset.to=b.dataset.to;sh.querySelectorAll("#i_to .chip").forEach(x=>x.classList.toggle("on",x===b));});
 }
 function sheetLiq(){
-  const acc=S.settings.accounts.length?S.settings.accounts:[{n:"Compte courant",a:""},{n:"Livret",a:""}];
-  openSheet(`<h2>💧 Mes liquidités</h2><div class="tip" style="margin:-4px 0 12px">Le solde de chacun de tes comptes (compte courant, livrets, espèces…). Mets-les à jour quand tu veux : le total s'affiche sur l'accueil.</div>
+  const acc=S.settings.accounts.length?S.settings.accounts:[{n:"Compte courant",a:""},{n:"Livret A",a:""}];
+  openSheet(`<h2>💧 Mes liquidités</h2><div class="tip" style="margin:-4px 0 12px">Le solde de chacun de tes comptes (compte courant, livrets, espèces…). Ensuite, choisis le compte quand tu notes une dépense ou une entrée : le solde se met à jour tout seul.</div>
    <div id="lq">${acc.map(a=>liqRow(a)).join("")}</div>
    <button class="btn ghost sm" data-act="liqadd">+ Ajouter un compte</button>
    <div class="row" style="margin:14px 0 4px"><span class="label">Total</span><b id="lqtot">${fmt(sum(acc,a=>a.a))}</b></div>
@@ -591,7 +614,7 @@ function sheetLiq(){
    <div class="tip">Sans compte renseigné, Pécule estime tes liquidités : reste du mois + épargne.</div>`);
   $("#lq").addEventListener("input",()=>{$("#lqtot").textContent=fmt(sum([...sh.querySelectorAll(".lqa")],i=>i.value))});
 }
-const liqRow=a=>`<div class="f2"><input class="lqn" value="${esc(a.n)}" maxlength="30" placeholder="Nom du compte"><input class="lqa" inputmode="decimal" value="${esc(a.a)}" placeholder="0"><button class="x" data-act="liqdel">×</button></div>`;
+const liqRow=a=>`<div class="f2" data-id="${esc(a.id||"")}"><input class="lqn" value="${esc(a.n)}" maxlength="30" placeholder="Nom du compte"><input class="lqa" inputmode="decimal" value="${esc(a.a)}" placeholder="0"><button class="x" data-act="liqdel">×</button></div>`;
 function sheetPot(id){
   const p=S.pots.find(x=>x.id===id);if(!p)return;
   const mv=S.moves.filter(x=>x.p===id).slice(-5).reverse();
@@ -707,7 +730,8 @@ function applyCommand(r){
   if(r.type==="pot"){S.moves.push({id:uid(),p:r.pot.id,a:r.sign*r.a,d:new Date().toISOString(),l:"🎙️ Vocal"});commit({force:true});toast(`${r.sign>0?"+":"−"}${fmt(r.a)} · ${r.pot.n} = ${fmt(potBalance(r.pot.id))}`);return true}
   const k=ensureMonth(),m=S.months[k];
   if(r.type==="inc"){m.inc=(m.inc||[]).concat([{id:uid(),a:r.a,c:r.c,l:r.l,d:new Date().toISOString()}]);commit({force:true});toast(`+${fmt(r.a)} · reste ${fmt(leftOf(m))}`);return true}
-  m.exp=(m.exp||[]).concat([{id:uid(),a:r.a,c:r.c,l:r.l,d:new Date().toISOString()}]);commit({force:true});
+  const acc=accOf(S.lastAcc)?S.lastAcc:"";if(acc)moveAcc(acc,-r.a);
+  m.exp=(m.exp||[]).concat([{id:uid(),a:r.a,c:r.c,l:r.l,d:new Date().toISOString(),acc}]);commit({force:true});
   toast(m.auto?`−${fmt(r.a)} noté`:`−${fmt(r.a)} · reste ${fmt(leftOf(m))}`);return true;
 }
 function sheetVoice(){
@@ -827,29 +851,32 @@ document.addEventListener("click",async e=>{
   /* dépenses */
   case"expense":return sheetExpense();
   case"saveexp":{const v=num($("#e_a").value);if(v<=0){toast("Entre un montant");return}const k=ensureMonth(),m=S.months[k];
-    m.exp=(m.exp||[]).concat([{id:uid(),a:v,c:sh.dataset.cat||"autre",l:$("#e_l").value.trim(),d:pickedDate()}]);
-    closeSheet();commit({force:true});toast(m.auto?`−${fmt(v)} noté`:`−${fmt(v)} · reste ${fmt(leftOf(m))}`);return}
+    const acc=sh.dataset.acc||"";if(acc){moveAcc(acc,-v);S.lastAcc=acc;}
+    m.exp=(m.exp||[]).concat([{id:uid(),a:v,c:sh.dataset.cat||"autre",l:$("#e_l").value.trim(),d:pickedDate(),acc}]);
+    closeSheet();commit({force:true});toast(acc&&accOf(acc)?`−${fmt(v)} · ${accOf(acc).n} : ${fmt(accOf(acc).a)}`:m.auto?`−${fmt(v)} noté`:`−${fmt(v)} · reste ${fmt(leftOf(m))}`);return}
   case"income":return sheetIncome();
   case"liq":return sheetLiq();
   case"liqadd":$("#lq").insertAdjacentHTML("beforeend",liqRow({n:"",a:""}));return;
   case"liqdel":b.parentElement.remove();$("#lqtot").textContent=fmt(sum([...sh.querySelectorAll(".lqa")],i=>i.value));return;
-  case"liqsave":{const rows=[...sh.querySelectorAll("#lq .f2")].map(r=>({id:uid(),n:r.querySelector(".lqn").value.trim()||"Compte",a:num(r.querySelector(".lqa").value)})).filter(r=>r.a!==0||r.n!=="Compte");
-    S.settings.accounts=rows.filter(r=>r.a!==0);closeSheet();commit({force:true});toast("Liquidités à jour ✅");return}
-  case"saveinc":{const v=num($("#i_a").value);if(v<=0){toast("Entre un montant");return}const c=sh.dataset.cat||"autre",l=$("#i_l").value.trim(),to=sh.dataset.to;
-    if(to){S.moves.push({id:uid(),p:to,a:v,c,d:pickedDate(),l:l||incOf(c).n});closeSheet();commit({force:true});toast(`+${fmt(v)} · ${S.pots.find(p=>p.id===to).n}`);return}
-    const k=ensureMonth(),m=S.months[k];m.inc=(m.inc||[]).concat([{id:uid(),a:v,c,l,d:pickedDate()}]);
+  case"liqsave":{const rows=[...sh.querySelectorAll("#lq .f2")].map(r=>({id:r.dataset.id||uid(),n:r.querySelector(".lqn").value.trim(),a:num(r.querySelector(".lqa").value)})).filter(r=>r.n||r.a!==0);
+    rows.forEach(r=>{if(!r.n)r.n="Compte"});S.settings.accounts=rows;closeSheet();commit({force:true});toast("Liquidités à jour ✅");return}
+  case"saveinc":{const v=num($("#i_a").value);if(v<=0){toast("Entre un montant");return}const c=sh.dataset.cat||"autre",l=$("#i_l").value.trim(),to=sh.dataset.to,acc=sh.dataset.acc||"";
+    if(acc){moveAcc(acc,v);S.lastAcc=acc;}
+    if(to){S.moves.push({id:uid(),p:to,a:v,c,d:pickedDate(),l:l||incOf(c).n,acc});closeSheet();commit({force:true});toast(`+${fmt(v)} · ${S.pots.find(p=>p.id===to).n}`);return}
+    const k=ensureMonth(),m=S.months[k];m.inc=(m.inc||[]).concat([{id:uid(),a:v,c,l,d:pickedDate(),acc}]);
     closeSheet();commit({force:true});toast(m.auto?`+${fmt(v)} noté`:`+${fmt(v)} · reste ${fmt(leftOf(m))}`);return}
   case"style":return setStyle(b.dataset.m);
   case"pal":return setPal(b.dataset.m);
   case"showstart":S.hideStart=false;UI.tab="home";commit({force:true});window.scrollTo(0,0);return;
   case"theme":return setTheme(b.dataset.m||(document.documentElement.dataset.theme==="dark"?"light":"dark"));
+  case"copylink":{const t=location.origin+location.pathname+"?add=[Montant]&m=[Commerçant]&card=[Carte]";try{await navigator.clipboard.writeText(t);toast("Lien copié ✅")}catch(x){toast("Sélectionne le lien et copie-le")}return}
   case"undo":{const f=UI.undo;UI.undo=null;$("#toast").classList.remove("on","act");if(f)f();return}
   case"gome":UI.tab="me";window.scrollTo(0,0);return render(true);
   case"hidestart":S.hideStart=true;return commit({force:true});
-  case"delinc":{const k=activeKey(),m=S.months[k];if(!m)return;const it=(m.inc||[]).find(x=>x.id===id);m.inc=(m.inc||[]).filter(x=>x.id!==id);commit({force:true});
-    toast("Entrée supprimée",()=>{if(it){m.inc.push(it);commit({force:true})}});return}
-  case"delexp":{const k=activeKey(),m=S.months[k];if(!m)return;const ex=m.exp.find(x=>x.id===id);m.exp=m.exp.filter(x=>x.id!==id);commit({force:true});
-    toast("Dépense supprimée",()=>{if(ex){m.exp.push(ex);commit({force:true})}});return}
+  case"delinc":{const k=activeKey(),m=S.months[k];if(!m)return;const it=(m.inc||[]).find(x=>x.id===id);if(!it)return;m.inc=m.inc.filter(x=>x.id!==id);if(it.acc)moveAcc(it.acc,-it.a);commit({force:true});
+    toast("Entrée supprimée",()=>{m.inc.push(it);if(it.acc)moveAcc(it.acc,it.a);commit({force:true})});return}
+  case"delexp":{const k=activeKey(),m=S.months[k];if(!m)return;const ex=m.exp.find(x=>x.id===id);if(!ex)return;m.exp=m.exp.filter(x=>x.id!==id);if(ex.acc)moveAcc(ex.acc,ex.a);commit({force:true});
+    toast("Dépense supprimée",()=>{m.exp.push(ex);if(ex.acc)moveAcc(ex.acc,-ex.a);commit({force:true})});return}
   /* pots */
   case"pot":return sheetPot(id);
   case"newpot":return sheetEditPot(null);
@@ -884,13 +911,24 @@ document.addEventListener("click",async e=>{
 });
 
 /* ================= Démarrage ================= */
+function handleLink(){
+  try{
+    const q=new URLSearchParams(location.search);const a=num(q.get("add")||q.get("inc"));if(!a)return;
+    const isInc=q.has("inc"),m=(q.get("m")||"").slice(0,60),card=norm(q.get("card")||"");
+    history.replaceState(null,"",location.pathname);
+    if(!S.onboarded)return;
+    const acc=card?S.settings.accounts.find(x=>{const n=norm(x.n);return n&&(card.includes(n)||n.includes(card))}):null;
+    const cat=CATS.find(c=>c.syn.some(w=>norm(m).includes(w)));
+    setTimeout(()=>{isInc?sheetIncome({a}):sheetExpense({a:Math.abs(a),l:m,acc:acc&&acc.id,c:cat?cat.id:"autre"});toast("Paiement détecté : vérifie puis valide");},400);
+  }catch(e){}
+}
 async function start(){
   S=sanitize(loadLocal(storeKey));
   if(CFG.supabaseUrl&&CFG.supabaseAnonKey){
     /* attend la session (6 s max, ex. hors connexion) pour éviter un écran qui clignote */
     await Promise.race([initCloud(),new Promise(r=>setTimeout(r,6000))]);
   }
-  UI.ready=true;render(true);
+  UI.ready=true;render(true);handleLink();
   if("serviceWorker" in navigator&&location.protocol==="https:"&&!location.hostname.endsWith("claude.ai")&&!location.hostname.endsWith("claudeusercontent.com")){
     try{navigator.serviceWorker.register("sw.js")}catch(e){}
   }
