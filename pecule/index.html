@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pécule</title>
+<meta name="description" content="Pécule : ton budget simple, tes pots d'épargne, des cours pour mieux gérer ton argent.">
+<meta name="theme-color" content="#0fb37f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Pécule">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<main id="app"><div class="empty" style="padding-top:40vh">Chargement…</div></main>
+
+<nav class="tabs" id="tabs" style="display:none">
+  <div class="brand"><span>🪙</span>Pécule</div>
+  <button data-tab="home" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Récap</button>
+  <button data-tab="spend"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 12h8"/></svg>Dépenses</button>
+  <button data-tab="inc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/></svg>Entrées</button>
+  <button data-tab="pots"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="7"/><path d="M9 4h6M12 10v6M9.5 13h5"/></svg>Pots</button>
+  <button data-tab="learn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M2 8l10-5 10 5-10 5z"/><path d="M6 10v5c3 2.5 9 2.5 12 0v-5"/></svg>Apprendre</button>
+  <div class="side-foot">
+    <button data-act="voice"><i>🎙️</i><span>Vocal</span></button>
+    <button data-act="theme" id="themebtn"><i>🌙</i><span>Mode sombre</span></button>
+    <button data-tab="me"><i>👤</i><span>Profil</span></button>
+    <div class="keys">Raccourcis : <b>D</b> dépense · <b>E</b> entrée · <b>P</b> paie · <b>1-5</b> pages</div>
+  </div>
+</nav>
+
+
+<div class="sheet-bg" id="sheetBg"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="config.js"></script>
+<script src="courses.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
