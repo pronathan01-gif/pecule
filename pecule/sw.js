@@ -1,5 +1,5 @@
 /* Pécule — service worker : marche hors connexion, toujours la dernière version quand il y a du réseau */
-const CACHE = "pecule-v6";
+const CACHE = "pecule-v7";
 const SHELL = ["./", "index.html", "app.css", "config.js", "courses.js", "app.js",
   "manifest.webmanifest", "icon-192.png", "icon-512.png", "apple-touch-icon.png"];
 
@@ -17,7 +17,7 @@ self.addEventListener("fetch", e => {
   if (url.hostname.endsWith("supabase.co")) return;
   // Réseau d'abord, cache en secours
   e.respondWith(
-    fetch(req).then(res => {
+    fetch(req,url.origin===location.origin?{cache:"no-cache"}:undefined).then(res => {
       if (res && res.ok && (url.origin === location.origin || url.hostname === "cdn.jsdelivr.net")) {
         const copy = res.clone();
         caches.open(CACHE).then(c => c.put(req, copy));
