@@ -1,5 +1,5 @@
 /* Pécule — service worker : marche hors connexion, toujours la dernière version quand il y a du réseau */
-const CACHE = "pecule-v5";
+const CACHE = "pecule-v6";
 const SHELL = ["./", "index.html", "app.css", "config.js", "courses.js", "app.js",
   "manifest.webmanifest", "icon-192.png", "icon-512.png", "apple-touch-icon.png"];
 
