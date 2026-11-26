@@ -87,7 +87,9 @@ function sanitize(o){
 const CFG=window.PECULE_CONFIG||{};
 let sb=null;
 function loadScript(src){return new Promise((ok,ko)=>{const s=document.createElement("script");s.src=src;s.onload=ok;s.onerror=ko;document.head.appendChild(s);})}
-async function initCloud(){
+let cloudInit=null;
+function initCloud(){if(UI.cloud||cloudInit)return cloudInit;cloudInit=initCloud0().then(ok=>{if(!ok)cloudInit=null;return ok});return cloudInit;}
+async function initCloud0(){
   if(!CFG.supabaseUrl||!CFG.supabaseAnonKey)return false;
   try{
     if(!window.supabase)await loadScript("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js");
@@ -222,7 +224,8 @@ applyTheme();
 const app=$("#app");let lastHtml="",rq=0,rqForce=false;
 function render(force){
   if(!UI.ready)return;if(force)rqForce=true;if(rq)return;
-  rq=requestAnimationFrame(()=>{rq=0;const f=rqForce;rqForce=false;doRender(f);});
+  const go=()=>{rq=0;const f=rqForce;rqForce=false;doRender(f);};
+  rq=document.hidden?setTimeout(go,0):requestAnimationFrame(go);
 }
 function doRender(force){
   const a=document.activeElement;
@@ -805,7 +808,8 @@ document.addEventListener("click",async e=>{
   case"skipauth":UI.authOpen=false;return render(true);
   case"gologin":UI.authOpen=true;UI.authMode="login";return render(true);
   case"wauth":{UI.pendingName=($("#w_name")||{}).value||"";
-    if(!UI.cloud){toast("Les comptes seront actifs dès la mise en ligne. En attendant : « Poursuivre sans connexion ».");return}
+    if(!UI.cloud&&CFG.supabaseUrl&&CFG.supabaseAnonKey){toast("Connexion au serveur…");await initCloud();}
+    if(!UI.cloud){toast(CFG.supabaseUrl?"Serveur injoignable, vérifie ta connexion puis réessaie.":"Les comptes ne sont pas encore activés. En attendant : « Poursuivre sans connexion ».");return}
     UI.authMode=b.dataset.m;UI.authOpen=true;return render(true)}
   case"wguest":{S.name=(($("#w_name")||{}).value||"").trim();enterApp(true);return}
   case"tuto":return sheetTuto(+b.dataset.i||0);
