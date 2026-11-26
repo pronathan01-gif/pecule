@@ -7,8 +7,8 @@
  * (Supabase > Project Settings > API). Voir GUIDE.md.
  */
 window.PECULE_CONFIG = {
-  supabaseUrl: "",
-  supabaseAnonKey: ""
+  supabaseUrl: "https://avpwsuyxwseixbtupffl.supabase.co",
+  supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF2cHdzdXl4d3NlaXhidHVwZmZsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU3MDc1MzEsImV4cCI6MjExMTI4MzUzMX0.beJE6QSX6jhGDJaRYjMUHS0o2C8khqkai5k0TP2zP_g"
 };
 
 /*
